@@ -15,6 +15,7 @@ namespace WebApplication58.Controllers
     [Authorize]
     public class AccountController : Controller
     {
+        private ApplicationDbContext db = new ApplicationDbContext();
         private ApplicationSignInManager _signInManager;
         private ApplicationUserManager _userManager;
 
@@ -139,37 +140,153 @@ namespace WebApplication58.Controllers
         [AllowAnonymous]
         public ActionResult Register()
         {
-            return View();
-        }
 
-        //
-        // POST: /Account/Register
+
+
+            RegisterAllViewModel registerAllViewModel = new RegisterAllViewModel();
+            var couSubject = from Cs in db.Roles
+                             where Cs.Name != "Customer"
+                             select Cs;
+
+
+            ViewBag.AccountType = new SelectList(couSubject, "Name", "Name");
+            registerAllViewModel.Password = "P@ssW0rd";
+            registerAllViewModel.ConfirmPassword = "P@ssW0rd";
+
+            return View(registerAllViewModel);
+        }
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Register(RegisterViewModel model)
+        public async Task<ActionResult> Register([Bind(Include = "Id,AccountType,FName,MName,LName,IdentityNumber,Gender,DateOfBirth,Email,Password,ConfirmPassword")] RegisterAllViewModel model)
         {
+
+            model.Password = "P@ssW0rd";
+            model.ConfirmPassword = "P@ssW0rd";
+
+
             if (ModelState.IsValid)
             {
                 var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
                 var result = await UserManager.CreateAsync(user, model.Password);
+
                 if (result.Succeeded)
                 {
-                    await SignInManager.SignInAsync(user, isPersistent:false, rememberBrowser:false);
-                    
-                    // For more information on how to enable account confirmation and password reset please visit https://go.microsoft.com/fwlink/?LinkID=320771
-                    // Send an email with this link
-                    // string code = await UserManager.GenerateEmailConfirmationTokenAsync(user.Id);
-                    // var callbackUrl = Url.Action("ConfirmEmail", "Account", new { userId = user.Id, code = code }, protocol: Request.Url.Scheme);
-                    // await UserManager.SendEmailAsync(user.Id, "Confirm your account", "Please confirm your account by clicking <a href=\"" + callbackUrl + "\">here</a>");
 
-                    return RedirectToAction("Index", "Home");
+
+                    if (model.AccountType == "Staff")
+                    {
+                        UserManager.AddToRole(user.Id, "Staff");
+
+                        Staff staff = new Staff()
+                        {
+
+                            Gender = model.Gender,
+                            FName = model.FName,
+                            LName = model.LName,
+                            Email = model.Email,
+                            IdentityNumber = model.IdentityNumber,
+                            MName = model.MName
+
+                        };
+                        if (model.Gender == "Male")
+                        { staff.Title = "Mr"; }
+                        else if (model.Gender == "Female")
+                        { staff.Title = "Mrs"; }
+
+                        db.Staffs.Add(staff);
+                        db.SaveChanges();
+                        TempData["ResultMessage"] = model.Email + " " + "Staff account has been successfully created";
+                        return RedirectToAction("Index", "Staffs");
+                    }
+
+                    else
+                    {
+                        UserManager.AddToRole(user.Id, "Admin");
+                        await SignInManager.SignInAsync(user, isPersistent: false, rememberBrowser: false);
+                        return RedirectToAction("AdminDashBord", "Home");
+                    }
                 }
-                AddErrors(result);
+                else { AddErrors(result); }
+
             }
 
-            // If we got this far, something failed, redisplay form
+            ViewBag.AccountType = new SelectList(db.Roles, "Name", "Name");
             return View(model);
+        }
+
+
+
+
+        [AllowAnonymous]
+        public ActionResult Registerp()
+        {
+            RegisterAllViewModel registerAllViewModel = new RegisterAllViewModel
+            {
+                //var couSubject = from Cs in db.Roles
+                //                 where Cs.Name != "Parent"
+                //                 select Cs;
+
+                //ViewBag.AccountType = new SelectList(couSubject, "Name", "Name");
+                AccountType = "Customer"
+            };
+
+            //ViewBag.AccountType = new SelectList(db.Roles, "Name", "Name", registerAllViewModel.AccountType);
+            return View(registerAllViewModel);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> Registerp([Bind(Include = "Id,AccountType,FName,MName,LName,IdentityNumber,Gender,DateOfBirth,Email,Password,ConfirmPassword")] RegisterAllViewModel model)
+        {
+
+
+
+            if (ModelState.IsValid)
+            {
+
+
+                var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+                var result = await UserManager.CreateAsync(user, model.Password);
+
+                if (result.Succeeded)
+                {
+                    if (model.AccountType == "Customer")
+                    {
+                        UserManager.AddToRole(user.Id, "Customer");
+
+
+                        Customer customer = new Customer()
+                        {
+                            CustomerId = model.Id,
+                            FName = model.FName,
+                            MName = model.MName,
+                            LName = model.LName,
+                            Gender = model.Gender,
+                            Email = model.Email,
+                            IdentityNumber = model.IdentityNumber
+                        };
+                        if (model.Gender == "Male")
+                        { customer.Title = "Mr"; }
+                        else if (model.Gender == "Female")
+                        { customer.Title = "Mrs"; }
+
+                        db.Customers.Add(customer);
+                        db.SaveChanges();
+                        TempData["HomeResultMessage"] = model.Email + " " + "Your Customer account have successfully been created";
+                        await SignInManager.SignInAsync(user, isPersistent: false, rememberBrowser: false);
+                        return RedirectToAction("CustomerDashBord", "Customers");
+
+                    }
+
+
+                }
+                else { AddErrors(result); }
+
+            }
+            return View(model);
+
         }
 
         //
